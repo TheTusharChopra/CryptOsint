@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Transaction Results</title>
+
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
+
+    <style>
+        body {
+            font-family: 'Poppins', sans-serif;
+            background: linear-gradient(135deg, #e3f2fd, #90caf9);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            color: #333;
+        }
+
+        h1, h2, h3 {
+            color: #0d47a1;
+            text-shadow: 1px 1px 5px rgba(0, 0, 0, 0.1);
+        }
+
+        .container {
+            background: #fff;
+            border-radius: 15px;
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.2);
+            padding: 30px;
+            width: 90%;
+            max-width: 800px;
+            perspective: 1000px;
+            transform-style: preserve-3d;
+        }
+
+        .container:hover {
+            transform: rotateY(2deg);
+        }
+
+        ul {
+            list-style-type: none;
+            padding-left: 0;
+        }
+
+        li {
+            background: #f1f8e9;
+            margin: 10px 0;
+            padding: 15px;
+            border-radius: 10px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+            transition: transform 0.3s;
+        }
+
+        li:hover {
+            transform: scale(1.05);
+        }
+
+        strong {
+            color: #1b5e20;
+        }
+
+        /* Add some 3D button effects */
+        button {
+            display: inline-block;
+            padding: 10px 20px;
+            background: linear-gradient(145deg, #4caf50, #2e7d32);
+            color: #fff;
+            border: none;
+            border-radius: 50px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.1);
+        }
+
+        button:hover {
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4);
+            transform: translateY(-3px);
+        }
+
+        /* Styling for iframes to embed the graphs */
+        iframe {
+            width: 100%;
+            height: 500px;
+            border: none;
+            border-radius: 10px;
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.2);
+            margin-top: 30px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Transaction Summary - {{ crypto_config.name }} ({{ crypto_config.symbol }})</h1>
+
+        {% if is_unconfirmed %}
+        <div style="background-color: #fff3cd; border: 2px solid #ffc107; border-radius: 10px; padding: 15px; margin: 20px 0;">
+            <h3 style="color: #856404; margin: 0;">⚠️ Unconfirmed Transaction</h3>
+            <p style="color: #856404; margin: 5px 0 0 0;">
+                This transaction is currently in the mempool and has not been confirmed yet.
+                {% if confirmations >= 0 %}
+                Confirmations: {{ confirmations }}
+                {% endif %}
+                <br><small>Note: Unconfirmed transactions may change or be dropped from the mempool.</small>
+            </p>
+        </div>
+        {% elif confirmations >= 0 %}
+        <div style="background-color: #d4edda; border: 2px solid #28a745; border-radius: 10px; padding: 15px; margin: 20px 0;">
+            <p style="color: #155724; margin: 0;">
+                ✅ Confirmed Transaction ({{ confirmations }} confirmation{% if confirmations != 1 %}s{% endif %})
+            </p>
+        </div>
+        {% endif %}
+
+        {% if fund_summary.get('error') %}
+        <div style="background-color: #ffebee; border: 2px solid #f44336; border-radius: 10px; padding: 20px; margin: 20px 0;">
+            <h2 style="color: #c62828;">⚠️ Error</h2>
+            <p style="color: #d32f2f; font-size: 16px;">{{ fund_summary.error }}</p>
+            <p style="color: #666; margin-top: 10px;">
+                <strong>Possible reasons:</strong><br>
+                • The transaction hash is incorrect<br>
+                • The transaction doesn't exist on the {{ crypto_config.name }} network<br>
+                • The API key is missing or invalid (check crypto.py)<br>
+                • Network connectivity issues
+            </p>
+        </div>
+        {% endif %}
+
+        <h2>Input Wallets</h2>
+        {% if fund_summary['input_wallets'] %}
+        <ul>
+            {% for wallet in fund_summary['input_wallets'] %}
+            <li>
+                <strong>Address:</strong> {{ wallet.address }}<br>
+                {% set divisor = crypto_config.divisor %}
+                {% set balance = wallet.balance / divisor %}
+                {% set total_received = wallet.total_received / divisor %}
+                {% set total_sent = wallet.total_sent / divisor %}
+                <strong>Balance:</strong> {{ "%.8f"|format(balance) }} {{ crypto_config.symbol }}
+                {% if crypto_config.conversion_rate > 0 %}
+                (₹{{ (balance * crypto_config.conversion_rate)|indian_currency }})
+                {% endif %}<br>
+                <strong>Total Received:</strong> {{ "%.8f"|format(total_received) }} {{ crypto_config.symbol }}
+                {% if crypto_config.conversion_rate > 0 %}
+                (₹{{ (total_received * crypto_config.conversion_rate)|indian_currency }})
+                {% endif %}<br>
+                <strong>Total Sent:</strong> {{ "%.8f"|format(total_sent) }} {{ crypto_config.symbol }}
+                {% if crypto_config.conversion_rate > 0 %}
+                (₹{{ (total_sent * crypto_config.conversion_rate)|indian_currency }})
+                {% endif %}<br>
+                <strong>Total Transactions:</strong> {{ wallet.n_tx }}<br>
+                {% if wallet.get('unconfirmed') %}
+                <span style="color: #ff9800; font-weight: bold;">⚠️ Unconfirmed Transaction</span><br>
+                {% endif %}
+            </li>
+            {% endfor %}
+        </ul>
+        {% else %}
+        <p><em>No input wallets found.</em></p>
+        {% endif %}
+
+        <h2>End Wallets</h2>
+        {% if fund_summary['end_wallets'] %}
+        <ul>
+            {% for wallet in fund_summary['end_wallets'] %}
+            <li>
+                <strong>Address:</strong> {{ wallet.address }}<br>
+                <strong>Value:</strong> {{ "%.8f"|format(wallet.value) }} {{ crypto_config.symbol }}
+                {% if crypto_config.conversion_rate > 0 %}
+                (₹{{ (wallet.value * crypto_config.conversion_rate)|indian_currency }})
+                {% endif %}
+                {% if wallet.get('unconfirmed') %}
+                <span style="color: #ff9800; font-weight: bold;"> (Unconfirmed)</span>
+                {% endif %}<br>
+            </li>
+            {% endfor %}
+        </ul>
+        {% else %}
+        <div style="background-color: #fff3cd; border: 1px solid #ffc107; border-radius: 5px; padding: 10px; margin: 10px 0;">
+            <p style="margin: 0; color: #856404;"><strong>No end wallets found.</strong></p>
+            <p style="margin: 5px 0 0 0; color: #856404; font-size: 0.9em;">
+                This could mean:<br>
+                • All transaction outputs have been spent (chain continues further)<br>
+                • The transaction chain is very long and hit the depth limit<br>
+                • API rate limiting prevented complete tracing<br>
+                • The transaction outputs don't have addresses
+            </p>
+        </div>
+        {% endif %}
+
+        <h2>Suspicious Wallets</h2>
+        {% if fund_summary['suspicious_wallets'] %}
+        {% for cluster, wallets in fund_summary['suspicious_wallets'].items() %}
+        <h3>Cluster {{ cluster }}</h3>
+        <ul>
+            {% for wallet in wallets %}
+            <li>
+                <strong>Address:</strong> {{ wallet.address }}<br>
+                {% set divisor = crypto_config.divisor %}
+                {% set balance = wallet.balance / divisor %}
+                {% set total_received = wallet.total_received / divisor %}
+                {% set total_sent = wallet.total_sent / divisor %}
+                <strong>Balance:</strong> {{ "%.8f"|format(balance) }} {{ crypto_config.symbol }}
+                {% if crypto_config.conversion_rate > 0 %}
+                (₹{{ (balance * crypto_config.conversion_rate)|indian_currency }})
+                {% endif %}<br>
+                <strong>Total Received:</strong> {{ "%.8f"|format(total_received) }} {{ crypto_config.symbol }}
+                {% if crypto_config.conversion_rate > 0 %}
+                (₹{{ (total_received * crypto_config.conversion_rate)|indian_currency }})
+                {% endif %}<br>
+                <strong>Total Sent:</strong> {{ "%.8f"|format(total_sent) }} {{ crypto_config.symbol }}
+                {% if crypto_config.conversion_rate > 0 %}
+                (₹{{ (total_sent * crypto_config.conversion_rate)|indian_currency }})
+                {% endif %}<br>
+                <strong>Total Transactions:</strong> {{ wallet.n_tx }}<br>
+            </li>
+            {% endfor %}
+        </ul>
+        {% endfor %}
+        {% else %}
+        <div style="background-color: #e7f3ff; border: 1px solid #2196F3; border-radius: 5px; padding: 10px; margin: 10px 0;">
+            <p style="margin: 0; color: #0d47a1;"><strong>No suspicious wallets detected.</strong></p>
+            <p style="margin: 5px 0 0 0; color: #1565c0; font-size: 0.9em;">
+                This could mean:<br>
+                • All wallets show similar transaction patterns (no anomalies)<br>
+                • There are fewer than 3 wallets to analyze (clustering requires multiple wallets)<br>
+                • The wallets don't exhibit suspicious behavior patterns<br>
+                • Wallet details couldn't be retrieved from the API
+            </p>
+        </div>
+        {% endif %}
+
+        <!-- Embedded iframe for transaction graph visualization (BTC-specific, may not work for other cryptos) -->
+        {% if crypto == 'btc' %}
+        <iframe src="https://txgraph.info/tx/{{ tx_hash }}" title="Transaction Graph"></iframe>
+        <!-- Embedded iframe for FBBE visualization (BTC-specific) -->
+        <iframe src="https://fbbe.info/t/{{ tx_hash }}" title="FBBE Transaction Details"></iframe>
+        {% else %}
+        <p><em>Note: Transaction visualization tools are currently only available for Bitcoin transactions.</em></p>
+        {% endif %}
+    </div>
+</body>
+</html>
